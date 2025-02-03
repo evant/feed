@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.compose)
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
@@ -7,7 +8,7 @@ plugins {
 
 android {
     namespace = "me.tatarka.android.feed.app"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "me.tatarka.android.feed"
@@ -42,9 +43,6 @@ android {
     buildFeatures {
         compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
-    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -57,19 +55,26 @@ room {
 }
 
 dependencies {
-    implementation(project(":feed-core"))
+    implementation(project(":feed-compose"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.navigation)
     ksp(libs.room.compiler)
     implementation(libs.room)
     implementation(libs.room.paging)
+    testImplementation(project(":feed-test"))
+    testImplementation(libs.androidx.paging.test)
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.assertk)
+    testImplementation(libs.turbine)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

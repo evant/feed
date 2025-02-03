@@ -1,91 +1,101 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package me.tatarka.android.feed.app
 
-import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import kotlinx.coroutines.launch
-import me.tatarka.android.feed.app.api.ItemApi
-import me.tatarka.android.feed.app.db.AppDatabase
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import me.tatarka.android.feed.app.ui.theme.FeedTheme
+
+enum class Page(val route: String, val title: String) {
+    LoadFromStart("/one", "Usecase: Load from start"),
+    SaveScrollPosition("/two", "Usecase: Save scroll position"),
+    LoadFromEnd("/three", "Usecase: Load from end"),
+    PagingSourceOnly("/four", "Usecase: PagingSource only"),
+}
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
         setContent {
-            val scope = rememberCoroutineScope()
-            val repo = remember {
-                ItemRepository(
-                    api = ItemApi(),
-                    db = AppDatabase.get(this),
-                    scope = scope,
-                    prefs = { getSharedPreferences("prefs", Context.MODE_PRIVATE) },
-                )
-            }
             FeedTheme {
-                MyPage(
-                    list = repo.items.collectAsLazyList(
-                        onUpdateScrollPosition = FeedListScrollPositions.firstVisibleIndex {
-                            repo.updateScrollPosition(it.id)
-                        },
-                    )
-                )
+                val navController = rememberNavController()
+
+                NavHost(navController, startDestination = "/") {
+                    composable("/") {
+                        Page(navController, Modifier.fillMaxSize())
+                    }
+                    composable(Page.LoadFromStart.route) {
+                        LoadFromStatePage(Modifier.fillMaxSize())
+                    }
+                    composable(Page.SaveScrollPosition.route) {
+                        SaveScrollPositionPage(Modifier.fillMaxSize())
+                    }
+                    composable(Page.LoadFromEnd.route) {
+                        LoadFromEndPage(Modifier.fillMaxSize())
+                    }
+                    composable(Page.PagingSourceOnly.route) {
+                        PagingSourceOnlyPage(Modifier.fillMaxSize())
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun MyPage(list: FeedLazyList<Item>, modifier: Modifier = Modifier) {
-    val scope = rememberCoroutineScope()
+private fun Page(
+    navController: NavController,
+    modifier: Modifier = Modifier,
+) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
-        floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = { scope.launch { list.refresh() } }) {
-                Text("Refresh")
-            }
+        modifier = modifier,
+        topBar = {
+            TopAppBar(title = { Text("Feed") })
         }
-    ) { innerPadding ->
-        MyList(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize(),
-            list = list
-        )
-    }
-}
-
-@Composable
-fun MyList(list: FeedLazyList<Item>, modifier: Modifier = Modifier) {
-    list.listState?.let { listState ->
-        LazyColumn(modifier = modifier, state = listState) {
-            items(list, key = { it.item.id }) { entry ->
-                val item = entry.item
-                MyListItem(
-                    name = item.name,
-                    checked = item.checked,
-                    onCheckedChange = item.onCheckedChange,
+    ) { padding ->
+        Column(modifier = Modifier.padding(padding)) {
+            for (page in Page.entries) {
+                ListItem(
+                    headlineContent = { Text(page.title) },
+                    modifier = Modifier.clickable {
+                        navController.navigate(page.route)
+                    }
                 )
             }
         }
+    }
+}
+
+class Item(
+    val id: Long,
+    val name: String,
+    val checked: Boolean = false,
+    val onCheckedChange: (Boolean) -> Unit = {},
+) {
+    override fun toString(): String {
+        return "Item(id=$id, name='$name')"
     }
 }
 
@@ -107,13 +117,17 @@ fun MyListItem(name: String, checked: Boolean, onCheckedChange: (Boolean) -> Uni
     )
 }
 
-@Preview(showBackground = true)
 @Composable
-fun MyPagePreview() {
-    FeedTheme {
-        MyPage(
-            modifier = Modifier.fillMaxWidth(),
-            list = feedLazyListOf(Item(id = 0, "1"), Item(id = 1, "2"))
-        )
-    }
+fun PlaceholderListItem() {
+    ListItem(
+        headlineContent = {},
+        supportingContent = {},
+        trailingContent = {}
+    )
+}
+
+@Preview(showSystemUi = true)
+@Composable
+private fun MainPagePreview() {
+    Page(rememberNavController())
 }

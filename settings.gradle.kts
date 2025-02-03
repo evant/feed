@@ -22,4 +22,5 @@ dependencyResolutionManagement {
 rootProject.name = "Feed"
 include(":app")
 include(":feed")
-include(":feed-core")
+include(":feed-compose")
+include(":feed-test")

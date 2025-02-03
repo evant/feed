@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import java.util.concurrent.Executors
 
 @Database(entities = [ItemEntity::class], version = 1)
 abstract class AppDatabase : RoomDatabase() {
@@ -18,7 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
             .databaseBuilder(context, AppDatabase::class.java, "db")
             .setQueryCallback({ sqlQuery, bindArgs ->
                 Log.e("query", "$sqlQuery [${bindArgs.joinToString()}]")
-            }, executor = Executors.newSingleThreadExecutor())
+            }, executor = Runnable::run)
             .build().also { instance = it }
     }
 }
