@@ -8,6 +8,7 @@ import androidx.paging.testing.asSnapshot
 import assertk.assertThat
 import assertk.assertions.containsExactly
 import assertk.assertions.hasSize
+import assertk.assertions.isEmpty
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
 import assertk.assertions.isTrue
@@ -25,7 +26,7 @@ import org.junit.Test
 class FeedRemoteMediatorTest {
 
     @Test
-    fun triggers_prepend_append_on_initial_load() = runTest {
+    fun triggers_refresh_on_initial_load() = runTest {
         val mediator = TestRemoteMediator()
         val pagingSourceFactory = flowOf(emptyList<String>())
             .asPagingSourceFactory(backgroundScope)
@@ -37,10 +38,8 @@ class FeedRemoteMediatorTest {
         pager.flow.asSnapshot()
 
         assertThat(mediator.initialized).isTrue()
-        assertThat(mediator.loads).containsExactly(
-            FeedRemoteMediator.LoadDirection.Prepend,
-            FeedRemoteMediator.LoadDirection.Append
-        )
+        assertThat(mediator.refreshes).hasSize(1)
+        assertThat(mediator.loads).isEmpty()
     }
 
     @Test
@@ -60,10 +59,7 @@ class FeedRemoteMediatorTest {
             remoteMediator = mediator,
             pagingSourceFactory = localItems.asPagingSourceFactory(backgroundScope)
         )
-        pager.flow.asSnapshot {
-            mediator.loads.clear()
-            refresh()
-        }
+        pager.flow.asSnapshot()
 
         assertThat(mediator.refreshes).hasSize(1)
         assertThat(mediator.loads).containsExactly(
@@ -88,10 +84,7 @@ class FeedRemoteMediatorTest {
             remoteMediator = mediator,
             pagingSourceFactory = localItems.asPagingSourceFactory(backgroundScope)
         )
-        pager.flow.asSnapshot {
-            mediator.loads.clear()
-            refresh()
-        }
+        pager.flow.asSnapshot()
 
         assertThat(mediator.refreshes).hasSize(1)
         assertThat(mediator.loads).containsExactly(

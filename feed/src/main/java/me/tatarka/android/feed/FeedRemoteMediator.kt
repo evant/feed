@@ -49,8 +49,8 @@ interface FeedRemoteMediator<Key : Any, Value : Any> {
     suspend fun load(direction: LoadDirection, state: PagingState<Key, Value>): LoadResult
 
     /**
-     * Callback triggered when Paging needs to request more data from a source due to a refresh
-     * signal sent from the UI.
+     * Callback triggered when Paging needs to request more data from a source on initial load or
+     * due to a refresh signal sent from the UI.
      *
      * It is the responsibility of this method to update the backing dataset and trigger
      * [PagingSource.invalidate].

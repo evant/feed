@@ -17,11 +17,33 @@ internal class FeedRemoteMediatorAdapter<Key : Any, Value : Any>(
     private val remoteMediator: FeedRemoteMediator<Key, Value>
 ) : RemoteMediator<Key, Value>() {
 
+    private var firstLoad = FirstLoadState.First
     private var endOfPrependReached = false
     private var endOfAppendReached = false
     private var refreshing: CancellableContinuation<Unit>? = null
 
     override suspend fun load(loadType: LoadType, state: PagingState<Key, Value>): MediatorResult {
+        if (firstLoad == FirstLoadState.First && state.isEmpty()) {
+            firstLoad = FirstLoadState.Skip
+            // If we are starting from an empty state then both a prepend & append will be
+            // fired. We can simplify implementations by calling refresh instead.
+            // This allows it to report which direction future loading may take place,
+            // possibly short-circuiting future calls.
+            return when (val result = remoteMediator.refresh(state)) {
+                is RefreshResult.Error -> MediatorResult.Error(result.throwable)
+                is RefreshResult.Success -> {
+                    endOfPrependReached = result.endOfPrependReached
+                    endOfAppendReached = result.endOfAppendReached
+                    MediatorResult.Success(endOfPaginationReached = endOfPrependReached && endOfAppendReached)
+                }
+            }
+        } else if (firstLoad == FirstLoadState.Skip) {
+            firstLoad = FirstLoadState.None
+            return MediatorResult.Success(endOfPaginationReached = endOfAppendReached)
+        } else {
+            firstLoad = FirstLoadState.None
+        }
+
         return when (loadType) {
             LoadType.REFRESH -> {
                 val refreshState = if (refreshing != null) {
@@ -40,7 +62,7 @@ internal class FeedRemoteMediatorAdapter<Key : Any, Value : Any>(
                         endOfAppendReached = result.endOfAppendReached
                         refreshing?.resume(Unit)
                         refreshing = null
-                        MediatorResult.Success(endOfPaginationReached = false)
+                        MediatorResult.Success(endOfPaginationReached = endOfPrependReached && endOfAppendReached)
                     }
 
                     is RefreshResult.Error -> {
@@ -92,5 +114,9 @@ internal class FeedRemoteMediatorAdapter<Key : Any, Value : Any>(
     override suspend fun initialize(): InitializeAction {
         remoteMediator.initialize()
         return InitializeAction.SKIP_INITIAL_REFRESH
+    }
+
+    private enum class FirstLoadState {
+        First, Skip, None
     }
 }

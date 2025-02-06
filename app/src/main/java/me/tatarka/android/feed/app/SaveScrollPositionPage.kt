@@ -76,7 +76,7 @@ class SaveScrollPositionRepository(
     )
 
     private val remoteMediator = ItemRemoteMediator<Int, ItemEntity>(
-        fetch = { afterItem, beforeItem, size, replace ->
+        fetcher = { afterItem, beforeItem, size, replace ->
             try {
                 val items = api.get(
                     minId = afterItem?.id,

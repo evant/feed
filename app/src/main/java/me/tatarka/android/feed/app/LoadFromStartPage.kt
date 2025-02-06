@@ -64,7 +64,7 @@ class LoadFromStartRepository(
     private val config = PagingConfig(pageSize = 25)
 
     private val remoteMediator = ItemRemoteMediator<Int, ItemEntity>(
-        fetch = { afterItem, beforeItem, size, replace ->
+        fetcher = { afterItem, beforeItem, size, replace ->
             try {
                 Log.d(
                     "api",

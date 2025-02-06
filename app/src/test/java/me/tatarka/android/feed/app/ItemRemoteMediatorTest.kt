@@ -24,7 +24,7 @@ class ItemRemoteMediatorTest {
     val localItems = MutableStateFlow(emptyList<ApiItem>())
 
     val requests = mutableListOf<FetchRequest>()
-    val fetch = ItemRemoteMediator.Fetch<ApiItem> { afterItem, beforeItem, size, replace ->
+    val fetch = ItemRemoteMediator.Fetcher<ApiItem> { afterItem, beforeItem, size, replace ->
         requests.add(FetchRequest(afterItem?.id, beforeItem?.id, size, replace))
         val items = api.get(
             minId = afterItem?.id,
@@ -33,7 +33,7 @@ class ItemRemoteMediatorTest {
         )
         insert(items, replace)
 
-        FeedRemoteMediator.LoadResult.Success(true)
+        FeedRemoteMediator.LoadResult.Success(endOfPaginationReached = items.size < size)
     }
 
     @Test
@@ -49,11 +49,19 @@ class ItemRemoteMediatorTest {
         pager.flow.asSnapshot()
 
         assertThat(requests).containsExactly(
+            // refresh
             FetchRequest(
                 afterId = null,
                 beforeId = null,
                 size = config.initialLoadSize,
-                replace = false
+                replace = true,
+            ),
+            // append
+            FetchRequest(
+                afterId = 3L,
+                beforeId = null,
+                size = config.pageSize,
+                replace = false,
             )
         )
     }
@@ -62,8 +70,8 @@ class ItemRemoteMediatorTest {
     fun loads_prev_and_next_pages_asc() = runTest {
         // start with 3, 4, 5
         insert(List(3) { ApiItem(it.toLong() + 3, "$it") })
-        val mediator = ItemRemoteMediator<Int, ApiItem>(fetch = fetch)
-        val config = PagingConfig(pageSize = 1)
+        val mediator = ItemRemoteMediator<Int, ApiItem>(fetcher = fetch)
+        val config = PagingConfig(pageSize = 3)
         val pager = FeedPager(
             config = config,
             remoteMediator = mediator,
@@ -96,7 +104,7 @@ class ItemRemoteMediatorTest {
             fetch,
             ItemRemoteMediator.ItemOrder.Descending,
         )
-        val config = PagingConfig(pageSize = 1)
+        val config = PagingConfig(pageSize = 3)
         val pager = FeedPager(
             config = config,
             remoteMediator = mediator,
@@ -124,12 +132,12 @@ class ItemRemoteMediatorTest {
 
     @Test
     fun refresh_on_empty_loads_initial() = runTest {
-        val fetch = ItemRemoteMediator.Fetch<ApiItem> { afterItem, beforeItem, size, replace ->
+        val fetch = ItemRemoteMediator.Fetcher<ApiItem> { afterItem, beforeItem, size, replace ->
             requests.add(FetchRequest(afterItem?.id, beforeItem?.id, size, replace))
             insert(emptyList(), replace)
             FeedRemoteMediator.LoadResult.Success(endOfPaginationReached = true)
         }
-        val mediator = ItemRemoteMediator<Int, ApiItem>(fetch = fetch)
+        val mediator = ItemRemoteMediator<Int, ApiItem>(fetcher = fetch)
         val config = PagingConfig(pageSize = 1)
         val pager = FeedPager(
             config = config,
@@ -236,7 +244,7 @@ class ItemRemoteMediatorTest {
         // 1, 2, 3, 4, 5, 6
         insert(List(6) { ApiItem(it + 1L, "$it") })
         val mediator = ItemRemoteMediator<Int, ApiItem>(fetch)
-        val config = PagingConfig(pageSize = 2)
+        val config = PagingConfig(pageSize = 3)
         val pager = FeedPager(
             config = config,
             remoteMediator = mediator,
@@ -252,7 +260,7 @@ class ItemRemoteMediatorTest {
         assertThat(requests).containsExactly(
             // refresh
             FetchRequest(
-                afterId = 3,
+                afterId = 2,
                 beforeId = null,
                 size = config.initialLoadSize,
                 replace = true,
@@ -260,7 +268,7 @@ class ItemRemoteMediatorTest {
             // prepend, since refresh requested items after
             FetchRequest(
                 afterId = null,
-                beforeId = 4,
+                beforeId = 3,
                 size = config.pageSize,
                 replace = false,
             )
@@ -307,7 +315,89 @@ class ItemRemoteMediatorTest {
                 beforeId = null,
                 size = config.pageSize,
                 replace = false,
+            ),
+            FetchRequest(
+                afterId = 5,
+                beforeId = null,
+                size = config.pageSize,
+                replace = false,
+            ),
+        )
+    }
+
+    @Test
+    fun refresh_loads_over_large_page_size_asc() = runTest {
+        // 1, 2, 3, 4, 5, 6
+        insert(List(6) { ApiItem(it + 1L, "$it") })
+        val mediator = ItemRemoteMediator<Int, ApiItem>(fetch)
+        val config = PagingConfig(pageSize = 3)
+        val pager = FeedPager(
+            config = config,
+            remoteMediator = mediator,
+            pagingSourceFactory = localItems.asPagingSourceFactory(backgroundScope)
+        )
+
+        pager.flow.asSnapshot {
+            requests.clear()
+            refresh()
+        }
+
+        assertThat(requests).containsExactly(
+            // refresh
+            FetchRequest(
+                afterId = 1,
+                beforeId = null,
+                size = config.initialLoadSize,
+                replace = true,
+            ),
+            // prepend
+            FetchRequest(
+                afterId = null,
+                beforeId = 2,
+                size = config.pageSize,
+                replace = false
             )
+        )
+    }
+
+    @Test
+    fun refresh_loads_over_small_page_size_asc() = runTest {
+        // 1, 2, 3, 4, 5, 6
+        insert(List(6) { ApiItem(it + 1L, "$it") })
+        val mediator = ItemRemoteMediator<Int, ApiItem>(fetch)
+        val config = PagingConfig(pageSize = 1)
+        val pager = FeedPager(
+            config = config,
+            remoteMediator = mediator,
+            pagingSourceFactory = localItems.asPagingSourceFactory(backgroundScope)
+        )
+
+        pager.flow.asSnapshot {
+            requests.clear()
+            refresh()
+        }
+
+        assertThat(requests).containsExactly(
+            // refresh
+            FetchRequest(
+                afterId = null,
+                beforeId = 3,
+                size = config.initialLoadSize,
+                replace = true,
+            ),
+            // prepend
+            FetchRequest(
+                afterId = 2,
+                beforeId = null,
+                size = config.pageSize,
+                replace = false
+            ),
+            FetchRequest(
+                afterId = 3,
+                beforeId = null,
+                size = config.pageSize,
+                replace = false
+            ),
         )
     }
 

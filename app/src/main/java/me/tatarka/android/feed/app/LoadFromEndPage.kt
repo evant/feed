@@ -55,8 +55,12 @@ class LoadFromEndRepository(
     private val config = PagingConfig(pageSize = 25, enablePlaceholders = true)
 
     private val remoteMediator = ItemRemoteMediator<Int, ItemEntity>(
-        fetch = { afterItem, beforeItem, size, replace ->
+        fetcher = { afterItem, beforeItem, size, replace ->
             try {
+                Log.d(
+                    "api",
+                    "fetch: afterItem=${afterItem?.id}, beforeItem=${beforeItem?.id}, size=${size}, replace=${replace}"
+                )
                 val items = api.get(
                     minId = afterItem?.id,
                     maxId = beforeItem?.id,
@@ -64,7 +68,7 @@ class LoadFromEndRepository(
                 )
                 Log.d(
                     "api",
-                    "fetch: itemCount=${items.size}, firstId=${items.firstOrNull()?.id}, lastId=${items.lastOrNull()?.id}, replace=${replace}"
+                    "fetch: itemCount=${items.size}, first=${items.firstOrNull()?.id}, last=${items.lastOrNull()?.id}"
                 )
                 db.itemDao.insertAll(items.map {
                     ItemEntity(
@@ -72,7 +76,8 @@ class LoadFromEndRepository(
                         text = it.text,
                     )
                 }, replace = replace)
-                FeedRemoteMediator.LoadResult.Success(endOfPaginationReached = items.size < size)
+                val endOfPaginationReached = items.size < size
+                FeedRemoteMediator.LoadResult.Success(endOfPaginationReached = endOfPaginationReached)
             } catch (e: Exception) {
                 Log.e("api", e.message, e)
                 FeedRemoteMediator.LoadResult.Error(e)
