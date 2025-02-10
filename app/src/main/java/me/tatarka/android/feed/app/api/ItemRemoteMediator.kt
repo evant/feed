@@ -4,7 +4,9 @@ import androidx.paging.ExperimentalPagingApi
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import me.tatarka.android.feed.FeedRemoteMediator
+import me.tatarka.android.feed.FeedRemoteMediator.LoadDirection
 import me.tatarka.android.feed.FeedRemoteMediator.LoadResult
+import me.tatarka.android.feed.FeedRemoteMediator.RefreshResult
 
 /**
  * A [FeedRemoteMediator] that fetches before and after particular items in the list.
@@ -47,15 +49,15 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
             beforeItem: Item?,
             size: Int,
             replace: Boolean
-        ): FeedRemoteMediator.LoadResult
+        ): LoadResult
     }
 
     override suspend fun load(
-        direction: FeedRemoteMediator.LoadDirection,
+        direction: LoadDirection,
         state: PagingState<Key, Item>
-    ): FeedRemoteMediator.LoadResult {
+    ): LoadResult {
         return when (direction) {
-            FeedRemoteMediator.LoadDirection.Prepend -> {
+            LoadDirection.Prepend -> {
                 val item = state.firstItemOrNull()
                 fetch(
                     firstItem = null,
@@ -65,7 +67,7 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
                 )
             }
 
-            FeedRemoteMediator.LoadDirection.Append -> {
+            LoadDirection.Append -> {
                 val item = state.lastItemOrNull()
                 fetch(
                     firstItem = item,
@@ -77,7 +79,7 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
         }
     }
 
-    override suspend fun refresh(state: PagingState<Key, Item>): FeedRemoteMediator.RefreshResult {
+    override suspend fun refresh(state: PagingState<Key, Item>): RefreshResult {
         val anchorPosition = state.anchorPosition
         val loadSize = state.config.initialLoadSize
         return if (anchorPosition == null) {
@@ -89,12 +91,12 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
             )
             result.mapToRefreshResult {
                 when (order) {
-                    ItemOrder.Ascending -> FeedRemoteMediator.RefreshResult.Success(
+                    ItemOrder.Ascending -> RefreshResult.Success(
                         endOfPrependReached = true,
                         endOfAppendReached = it.endOfPaginationReached,
                     )
 
-                    ItemOrder.Descending -> FeedRemoteMediator.RefreshResult.Success(
+                    ItemOrder.Descending -> RefreshResult.Success(
                         endOfPrependReached = it.endOfPaginationReached,
                         endOfAppendReached = true,
                     )
@@ -103,7 +105,7 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
         } else {
             val loadDirection = calculateLoadDirection(state, anchorPosition, loadSize)
             when (loadDirection) {
-                FeedRemoteMediator.LoadDirection.Prepend -> {
+                LoadDirection.Prepend -> {
                     val item = state.closestItemToPosition(anchorPosition + loadSize / 2)
                     val result = fetch(
                         firstItem = null,
@@ -112,14 +114,14 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
                         replace = true
                     )
                     result.mapToRefreshResult {
-                        FeedRemoteMediator.RefreshResult.Success(
+                        RefreshResult.Success(
                             endOfPrependReached = it.endOfPaginationReached,
                             endOfAppendReached = false,
                         )
                     }
                 }
 
-                FeedRemoteMediator.LoadDirection.Append -> {
+                LoadDirection.Append -> {
                     val item = state.closestItemToPosition(anchorPosition - loadSize / 2)
                     val result = fetch(
                         firstItem = item,
@@ -128,7 +130,7 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
                         replace = true
                     )
                     result.mapToRefreshResult {
-                        FeedRemoteMediator.RefreshResult.Success(
+                        RefreshResult.Success(
                             endOfPrependReached = false,
                             endOfAppendReached = it.endOfPaginationReached,
                         )
@@ -142,7 +144,7 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
         state: PagingState<Key, Item>,
         anchorPosition: Int,
         loadSize: Int,
-    ): FeedRemoteMediator.LoadDirection {
+    ): LoadDirection {
         val firstPosition = anchorPosition - loadSize / 2
         val lastPosition = anchorPosition + loadSize / 2
         val firstIndex = state.pages.firstOrNull()?.itemsBefore
@@ -159,23 +161,23 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
 
         // If only one of first or last is valid, return that direction
         if (firstDistance >= 0 && lastDistance < 0) {
-            return FeedRemoteMediator.LoadDirection.Append
+            return LoadDirection.Append
         }
         if (lastDistance >= 0 && firstDistance < 0) {
-            return FeedRemoteMediator.LoadDirection.Prepend
+            return LoadDirection.Prepend
         }
 
         // If distances are the same, load based on item order
         if (firstDistance == lastDistance) {
             return when (order) {
-                ItemOrder.Ascending -> FeedRemoteMediator.LoadDirection.Append
-                ItemOrder.Descending -> FeedRemoteMediator.LoadDirection.Prepend
+                ItemOrder.Ascending -> LoadDirection.Append
+                ItemOrder.Descending -> LoadDirection.Prepend
             }
         }
 
         // Pick the one furthest away
-        return if (firstDistance > lastDistance) FeedRemoteMediator.LoadDirection.Append
-        else FeedRemoteMediator.LoadDirection.Prepend
+        return if (firstDistance > lastDistance) LoadDirection.Append
+        else LoadDirection.Prepend
     }
 
     private suspend fun fetch(
@@ -183,7 +185,7 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
         lastItem: Item?,
         size: Int,
         replace: Boolean
-    ): FeedRemoteMediator.LoadResult {
+    ): LoadResult {
         return when (order) {
             ItemOrder.Ascending -> fetcher.fetch(
                 afterItem = firstItem,
@@ -201,38 +203,11 @@ class ItemRemoteMediator<Key : Any, Item : Any>(
         }
     }
 
-    private inline fun FeedRemoteMediator.LoadResult.mapToRefreshResult(
-        transform: (FeedRemoteMediator.LoadResult.Success) -> FeedRemoteMediator.RefreshResult.Success
-    ): FeedRemoteMediator.RefreshResult = when (this) {
-        is FeedRemoteMediator.LoadResult.Error -> FeedRemoteMediator.RefreshResult.Error(throwable)
-        is FeedRemoteMediator.LoadResult.Success -> transform(this)
-    }
-
-    private fun FeedRemoteMediator.LoadResult.toRefreshResult(
-        endOfOpposingReached: Boolean,
-    ): FeedRemoteMediator.RefreshResult {
-        return when (this) {
-            is FeedRemoteMediator.LoadResult.Error ->
-                FeedRemoteMediator.RefreshResult.Error(throwable)
-
-            is FeedRemoteMediator.LoadResult.Success -> {
-                when (order) {
-                    ItemOrder.Ascending -> {
-                        FeedRemoteMediator.RefreshResult.Success(
-                            endOfPrependReached = endOfOpposingReached,
-                            endOfAppendReached = endOfPaginationReached,
-                        )
-                    }
-
-                    ItemOrder.Descending -> {
-                        FeedRemoteMediator.RefreshResult.Success(
-                            endOfPrependReached = endOfPaginationReached,
-                            endOfAppendReached = endOfOpposingReached,
-                        )
-                    }
-                }
-            }
-        }
+    private inline fun LoadResult.mapToRefreshResult(
+        transform: (LoadResult.Success) -> RefreshResult.Success
+    ): RefreshResult = when (this) {
+        is LoadResult.Error -> RefreshResult.Error(throwable)
+        is LoadResult.Success -> transform(this)
     }
 
     override suspend fun initialize() {

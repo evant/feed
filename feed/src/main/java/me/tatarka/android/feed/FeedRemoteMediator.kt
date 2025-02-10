@@ -1,12 +1,11 @@
 package me.tatarka.android.feed
 
 import androidx.paging.ExperimentalPagingApi
+import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import androidx.paging.RemoteMediator
-import androidx.paging.LoadState
-import me.tatarka.android.feed.FeedRemoteMediator.LoadDirection
 
 /**
  * An alternative api for [RemoteMediator] that handles some of it's shortcomings. Defines a set of

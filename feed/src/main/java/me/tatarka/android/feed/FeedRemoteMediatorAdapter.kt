@@ -112,6 +112,9 @@ internal class FeedRemoteMediatorAdapter<Key : Any, Value : Any>(
     }
 
     override suspend fun initialize(): InitializeAction {
+        firstLoad = FirstLoadState.First
+        endOfPrependReached = false
+        endOfAppendReached = false
         remoteMediator.initialize()
         return InitializeAction.SKIP_INITIAL_REFRESH
     }
