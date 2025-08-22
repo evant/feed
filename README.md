@@ -1,5 +1,7 @@
 # feed
 
+moved to https://git.gay/pixellight/feed
+
 Support for androidx.paging
 
 Paging is one of these problems that sounds easy on the surface but gets more
